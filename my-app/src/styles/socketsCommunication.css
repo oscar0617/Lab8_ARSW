@@ -1,0 +1,46 @@
+/* Estilo general para la aplicación */
+.App {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    background-color: #f0f0f0;
+    font-family: Arial, sans-serif;
+  }
+  
+  h2 {
+    color: #4caf50;
+    margin-bottom: 20px;
+  }
+  
+  /* Estilo para la caja de inputs */
+  input {
+    margin: 5px;
+    padding: 10px;
+    font-size: 16px;
+    border: 2px solid #ccc;
+    border-radius: 4px;
+    width: 100px;
+  }
+  
+  /* Estilo para el botón */
+  button {
+    background-color: #4caf50;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 16px;
+  }
+  
+  button:hover {
+    background-color: #45a049;
+  }
+  
+  /* Estilo para el mensaje de error */
+  p {
+    color: red;
+  }
+  
