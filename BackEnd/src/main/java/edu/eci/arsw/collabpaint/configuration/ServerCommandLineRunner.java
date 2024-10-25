@@ -38,13 +38,19 @@ public class ServerCommandLineRunner implements CommandLineRunner {
         server.addEventListener("enviar_punto", Point.class, new DataListener<Point>() {
             @Override
             public void onData(SocketIOClient client, Point data, AckRequest ackRequest) {
+                // Log para confirmar recepción del punto
                 System.out.println("Punto recibido del cliente " + client.getSessionId() + ": X=" + data.getX() + ", Y=" + data.getY());
+                
+                // Broadcast del punto a todos los clientes
                 server.getBroadcastOperations().sendEvent("nuevo_punto", data);
+                
+                // Enviar un acknowledgment si es solicitado
                 if (ackRequest.isAckRequested()) {
-                    ackRequest.sendAckData("Punto recibido");
+                    ackRequest.sendAckData("Punto recibido correctamente en el servidor.");
                 }
             }
         });
+
 
         // Registrar un shutdown hook para detener el servidor correctamente
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
