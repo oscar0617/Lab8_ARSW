@@ -38,15 +38,26 @@ public class ServerCommandLineRunner implements CommandLineRunner {
         server.addEventListener("enviar_punto", Point.class, new DataListener<Point>() {
             @Override
             public void onData(SocketIOClient client, Point data, AckRequest ackRequest) {
-                // Log para confirmar recepción del punto
-                System.out.println("Punto recibido del cliente " + client.getSessionId() + ": X=" + data.getX() + ", Y=" + data.getY());
-                
-                // Broadcast del punto a todos los clientes
-                server.getBroadcastOperations().sendEvent("nuevo_punto", data);
-                
+                // Obtener el parámetro de sala desde la conexión del cliente
+                String room = client.getHandshakeData().getSingleUrlParam("room");
+
+                if (room == null || room.isEmpty()) {
+                    System.out.println("No se especificó una sala para el cliente " + client.getSessionId());
+                    return;
+                }
+
+                // Log para confirmar recepción del punto en la sala
+                System.out.println("Punto recibido en " + room + " del cliente " + client.getSessionId() + ": X=" + data.getX() + ", Y=" + data.getY());
+
+                // Asegurarse de que el cliente esté en la sala antes de enviar el evento
+                client.joinRoom(room);
+
+                // Enviar el evento solo a los clientes en la sala especificada
+                server.getRoomOperations(room).sendEvent("nuevo_punto", data);
+
                 // Enviar un acknowledgment si es solicitado
                 if (ackRequest.isAckRequested()) {
-                    ackRequest.sendAckData("Punto recibido correctamente en el servidor.");
+                    ackRequest.sendAckData("Punto recibido correctamente en la sala " + room);
                 }
             }
         });

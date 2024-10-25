@@ -2,42 +2,41 @@ import React, { useState, useEffect, useRef } from "react";
 import io from 'socket.io-client';
 import './styles/socketsCommunication.css';
 
-const socket = io('http://127.0.0.1:8085', {
-  transports: ['websocket']
-});
-
 function App() {
+  const [socket, setSocket] = useState(null); // Estado para almacenar el socket
   const [isConnected, setIsConnected] = useState(false);
   const [x, setX] = useState('');  // Estado para el valor de X
   const [y, setY] = useState('');  // Estado para el valor de Y
   const [drawnPoints, setDrawnPoints] = useState([]); // Puntos acumulados en el canvas
   const userCanvasRef = useRef(null); // Canvas
 
+  
   useEffect(() => {
-    socket.on('connect', () => {
-      console.log("Conectado al servidor");
-      setIsConnected(true);
-    });
-
-    // Escuchar el evento 'nuevo_punto' que contiene los puntos replicados
-    socket.on('nuevo_punto', (data) => {
-      console.log("Punto replicado recibido: ", data);
-      setDrawnPoints((prevPoints) => {
-        const updatedPoints = [...prevPoints, data];
-        drawUserPoints(updatedPoints, userCanvasRef);
-        return updatedPoints;
+    if (socket) {
+      socket.on('connect', () => {
+        console.log("Conectado al servidor");
+        setIsConnected(true);
       });
-    });
 
-    return () => {
-      socket.off('connect');
-      socket.off('nuevo_punto');
-    };
-  }, []);
+      socket.on('nuevo_punto', (data) => {
+        console.log("Punto replicado recibido: ", data);
+        setDrawnPoints((prevPoints) => {
+          const updatedPoints = [...prevPoints, data];
+          drawUserPoints(updatedPoints, userCanvasRef);
+          return updatedPoints;
+        });
+      });
+
+      return () => {
+        socket.off('connect');
+        socket.off('nuevo_punto');
+      };
+    }
+  }, [socket]);
 
   const enviarXY = () => {
     const punto = { x: parseInt(x), y: parseInt(y) }; 
-    if (x !== '' && y !== '') {
+    if (x !== '' && y !== '' && socket) {
       socket.emit('enviar_punto', punto);  
       console.log(`Punto enviado: X=${x}, Y=${y}`);
     }
@@ -61,7 +60,6 @@ function App() {
     context.stroke();
   };
 
-  // Función para manejar los clics del usuario
   const handleUserCanvasClick = (e) => {
     const canvas = userCanvasRef.current;
     const rect = canvas.getBoundingClientRect();
@@ -69,8 +67,10 @@ function App() {
     const y = e.clientY - rect.top;
     
     const newPoint = { x, y };
-    socket.emit('enviar_punto', newPoint); 
-    console.log(`Punto enviado: X=${x}, Y=${y}`);
+    if (socket) {
+      socket.emit('enviar_punto', newPoint); 
+      console.log(`Punto enviado: X=${x}, Y=${y}`);
+    }
     setDrawnPoints((prevPoints) => {
       const updatedPoints = [...prevPoints, newPoint];
       drawUserPoints(updatedPoints, userCanvasRef); 
@@ -78,10 +78,41 @@ function App() {
     });
   };
 
+  // Función para conectarse a la sala
+  const conectarseSala = () => {
+    const numeroSala = prompt("Ingrese el número de sala:");
+    if (numeroSala) {
+      const newSocket = io('http://127.0.0.1:8085', {
+        transports: ['websocket'],
+        query: { room: `sala_${numeroSala}` }
+      });
+      setSocket(newSocket);
+
+    }
+  };
+
+  const limpiarCanvas = () => {
+    const canvas = userCanvasRef.current;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  }
+
+  const limpiarPuntos = () => {
+    setDrawnPoints([]);
+  }
+
+  const limpiarYConectarse = () => {
+    limpiarCanvas();
+    limpiarPuntos();
+    conectarseSala();
+  }
+
+  
+
   return (
     <div className="App">
+      <button onClick={limpiarYConectarse}>Conectarse a la Sala</button>
       <h2>{isConnected ? 'Conectado' : 'No conectado'}</h2>
-
       <div className="inputs"> 
         X: <input 
               id="x" 
