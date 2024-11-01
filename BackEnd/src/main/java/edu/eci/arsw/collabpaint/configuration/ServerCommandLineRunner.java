@@ -1,6 +1,8 @@
-package edu.eci.arsw.collabpaint.Configuration;
+package edu.eci.arsw.collabpaint.configuration;
 
-import edu.eci.arsw.collabpaint.model.Point;  // Importa la clase Point
+import edu.eci.arsw.collabpaint.model.Point;
+import edu.eci.arsw.collabpaint.model.Polygon;
+import edu.eci.arsw.collabpaint.Controller.DrawingController;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
@@ -14,59 +16,56 @@ import com.corundumstudio.socketio.AckRequest;
 public class ServerCommandLineRunner implements CommandLineRunner {
 
     private final SocketIOServer server;
+    private final DrawingController drawingController;
 
     @Autowired
     public ServerCommandLineRunner(SocketIOServer server) {
         this.server = server;
+        this.drawingController = new DrawingController();
     }
 
     @Override
     public void run(String... args) throws Exception {
-        // Iniciar el servidor Socket.IO
         server.start();
-        System.out.println("Socket.IO server started on port " + server.getConfiguration().getPort());
-        
-        // Agregar listener para conexiones exitosas
+        System.out.println("Socket.IO server iniciado en el puerto " + server.getConfiguration().getPort());
+
+        // Listener para conexiones
         server.addConnectListener(new ConnectListener() {
             @Override
             public void onConnect(SocketIOClient client) {
-                System.out.println("Conexión exitosa de cliente con ID: " + client.getSessionId());
+                String room = client.getHandshakeData().getSingleUrlParam("room");
+                System.out.println("Cliente conectado - ID: " + client.getSessionId());
+                System.out.println("Sala: " + room);
+                client.joinRoom(room);
             }
         });
 
-        // Listener para recibir datos del evento 'enviar_punto' que contiene tanto X como Y
+        // Listener para puntos
         server.addEventListener("enviar_punto", Point.class, new DataListener<Point>() {
             @Override
-            public void onData(SocketIOClient client, Point data, AckRequest ackRequest) {
-                // Obtener el parámetro de sala desde la conexión del cliente
+            public void onData(SocketIOClient client, Point point, AckRequest ackRequest) {
                 String room = client.getHandshakeData().getSingleUrlParam("room");
 
-                if (room == null || room.isEmpty()) {
-                    System.out.println("No se especificó una sala para el cliente " + client.getSessionId());
-                    return;
+                // Agregar el punto al controlador
+                drawingController.addPoint(room, point);
+
+                // Propagar el punto a todos los clientes en la sala
+                server.getRoomOperations(room).sendEvent("nuevo_punto", point);
+
+                // Verificar si debemos crear un polígono después de recibir 4 o más puntos
+                if (drawingController.shouldCreatePolygon(room)) {
+                    Polygon polygon = drawingController.createPolygonFromLastFour(room);
+                    if (polygon != null) {
+                        // Enviar el polígono a todos los clientes en la sala
+                        server.getRoomOperations(room).sendEvent("polygon", polygon);
+                    }
                 }
 
-                // Log para confirmar recepción del punto en la sala
-                System.out.println("Punto recibido en " + room + " del cliente " + client.getSessionId() + ": X=" + data.getX() + ", Y=" + data.getY());
-
-                // Asegurarse de que el cliente esté en la sala antes de enviar el evento
-                client.joinRoom(room);
-
-                // Enviar el evento solo a los clientes en la sala especificada
-                server.getRoomOperations(room).sendEvent("nuevo_punto", data);
-
-                // Enviar un acknowledgment si es solicitado
+                // Enviar confirmación al cliente
                 if (ackRequest.isAckRequested()) {
-                    ackRequest.sendAckData("Punto recibido correctamente en la sala " + room);
+                    ackRequest.sendAckData("Punto recibido en sala " + room);
                 }
             }
         });
-
-
-        // Registrar un shutdown hook para detener el servidor correctamente
-        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            System.out.println("Stopping Socket.IO server...");
-            server.stop();
-        }));
     }
 }
